@@ -304,7 +304,7 @@
 const $=id=>document.getElementById(id);
 const cv=$("game"), ctx=cv.getContext("2d");
 let W=0,H=0,DPR=1;
-function resize(){DPR=Math.min(devicePixelRatio||1,2);W=cv.clientWidth;H=cv.clientHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);buildStatic();}
+function resize(){DPR=Math.min(devicePixelRatio||1,2);W=cv.clientWidth;H=cv.clientHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);_boardScr=null;buildStatic();}
 addEventListener("resize",resize);
 
 /* ============ AUDIO (synthesized, no files) ============ */
@@ -346,9 +346,34 @@ function updateHUD(){
 function toast(big,small,color){const t=$("toast");t.innerHTML=big+(small?`<small>${small}</small>`:"");t.style.color=color||"#fff";t.classList.add("show");clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove("show"),1100);}
 
 /* ============ PROJECTION (pseudo-3D) ============ */
+/* Far/top edge stays at 27.5% of canvas height. The near edge is raised so the
+   board length is foreshortened to its world proportion (1.2 wide × 1.9 long)
+   instead of stretching down through the throw dock. World coords are unchanged. */
+let _boardScr=null;
+function boardScreen(){
+  if(_boardScr&&_boardScr.W===W&&_boardScr.H===H)return _boardScr;
+  const topY=H*0.275;
+  const nearW=1.2*W*0.37*0.9;
+  const span=nearW*(1.9/1.2)*0.82;
+  let frontY=topY+span;
+  const apron=H*0.032*0.9;
+  const gap=Math.max(36,Math.min(52,H*0.048));
+  let foulY=frontY+apron+gap;
+  let dockTop=H-(Math.max(H*0.07,50)+4)-137;
+  const dock=$("controls");
+  if(dock&&getComputedStyle(dock).display!=="none"){
+    const top=dock.getBoundingClientRect().top-cv.getBoundingClientRect().top;
+    if(top>80&&top<H)dockTop=top;
+  }
+  const limit=dockTop-26;
+  if(foulY>limit){frontY-=foulY-limit;foulY=limit;}
+  if(frontY>foulY-16)frontY=foulY-16;
+  if(frontY<topY+24)frontY=topY+24;
+  _boardScr={W,H,foulY,frontY,topY};
+  return _boardScr;
+}
 function proj(x,y,z=0){
-  // Angled-up board: front edge raised, back edge high near the top, length foreshortened
-  const foulY=H*0.80, frontY=H*0.64, topY=H*0.275;
+  const {foulY,frontY,topY}=boardScreen();
   const t=Math.max(0,Math.min(1,(y-0.2)/2.15));
   let sy,scale;
   if(y<=BOARD.y0){ // foul line -> board front (short grass gap, board already up high)
